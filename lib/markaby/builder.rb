@@ -146,7 +146,7 @@ module Markaby
 
     # Create a tag named +tag+. Other than the first argument which is the tag name,
     # the arguments are the same as the tags implemented via method_missing.
-    def tag!(tag, *args, &block)
+    def tag!(tag, *args, **kwargs, &block)
       attributes = {}
       if @auto_validation && @tagset
         attributes = @tagset.validate_and_transform_attributes!(tag, *args)
@@ -159,7 +159,7 @@ module Markaby
         block = proc { text(str) }
       end
 
-      f = fragment { @builder.tag!(tag, *args, &block) }
+      f = fragment { @builder.tag!(tag, *args, **kwargs, &block) }
       @used_ids[element_id] = f unless element_id.empty?
       f
     end
@@ -179,16 +179,23 @@ module Markaby
     #
     # method_missing used to be the lynchpin in Markaby, but it's no longer used to handle
     # HTML tags.  See html_tag for that.
-    def method_missing(sym, *args, &block)
+    def method_missing(sym, *args, **kwargs, &block)
       case response_for(sym)
-      when :helper then @_helper.send(sym, *args, &block)
+      when :helper then
+        helper_res = @_helper.send(sym, *args, **kwargs, &block)        
+        if helper_res.respond_to?(:to_str) then 
+          @builder << helper_res.to_s
+          nil
+        else
+          helper_res
+        end
       when :assigns then @assigns[sym]
       when :stringy_assigns then @assigns[sym.to_s]
       when :ivar then instance_variable_get(ivar)
       when :helper_ivar then @_helper.instance_variable_get(ivar)
-      when :xml_markup then @builder.__send__(sym, *args, &block)
-      when :tag then tag!(sym, *args, &block)
-      when :tagset then @tagset.handle_tag sym, self, *args, &block
+      when :xml_markup then @builder.__send__(sym, *args, **kwargs, &block)
+      when :tag then tag!(sym, *args, **kwargs, &block)
+      when :tagset then @tagset.handle_tag sym, self, *args, **kwargs, &block
       else super
       end
     end
