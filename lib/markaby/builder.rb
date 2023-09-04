@@ -22,6 +22,9 @@ module Markaby
   #   puts mab.to_s
   #
   class Builder
+
+    class OutputString < String; end
+
     include Markaby::BuilderTags
     GENERIC_OPTIONS = {
       indent: 0,
@@ -76,6 +79,11 @@ module Markaby
       @_helper = helper
       @used_ids = {}
 
+      # This will flag a string to be outputted to the stream
+      def @_helper.with_output(val=nil, &block)
+        val ? OutputString.new(val) : OutputString.new(block.call)
+      end
+
       @@options.each do |k, v|
         instance_variable_set("@#{k}", @assigns.delete(k) || v)
       end
@@ -92,6 +100,7 @@ module Markaby
 
       text(capture(&block)) if block
     end
+
 
     def helper=(helper)
       @_helper = helper
@@ -183,7 +192,7 @@ module Markaby
       case response_for(sym)
       when :helper then
         helper_res = @_helper.send(sym, *args, **kwargs, &block)        
-        if helper_res.respond_to?(:to_str) then 
+        if helper_res.instance_of?(OutputString) then # respond_to?(:to_str) then 
           @builder << helper_res.to_s
           nil
         else
